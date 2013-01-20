@@ -1,63 +1,134 @@
-function Action (target, name) {
+function Action(type, params) {
+    'use strict';
 
-    //if (!(this instanceof Action)) {
-    //    return new Action(target, name);
-    //}
+    // click target
+    // select option in target (select or radio)
+    // hover over target
+    
+    // the delay either before or after the action
 
-    this.target = target;   // selector or jQuery object
-    this.name = name;     // string
+    // the condition that must be met for the action to happen
 
-    if (this.target && this.name) {
-        this.ready = true;
+    // the return value if the action is successful
+    // the return value if the action is uncesseful
+    // the return value if the action can't be classified as successful or unsuccessful
+
+
+    if (!(this instanceof Action)) {
+        return new Action(target, name);
+    }
+
+    if (!this[type]) {
+        throw 'action ' + type + ' is not a registered action.';
+    }
+
+    // used for the array prototype only
+    this.ap = [];
+
+    // reverse the params.
+    this.params = this.ap.reverse.apply(params, this.ap);
+
+    if (typeof type === "string") {
+        // internal function reference
+        this.type = this[type];
+    } else {
+        // type is a function
+        this.type = type;
+    }
+
+}
+Action.prototype = {
+    run : function (targetContext) {
+        'use strict';
+        console.log(targetContext);
+        if (this.params.length > 0) {
+            var params = this.params.pop();
+            this.type.apply(targetContext, [params]);
+        } else {
+            this.type.apply(targetContext,[]);
+        }
+    },
+    selectIfHasValue : function (value) {
+        'use strict';
+        // this is a <select> element
+        // value is the value attribute of the option.
+        // compares the value attribute case insensitivly
+        // and igores whitespace.
+
+        var toLowerTrim = function (val) {
+            return $.trim(val).toLowerCase();
+        }
+
+        value = value.toLowerCase();
+
+        $(this).find('option').each(function (index, element) {
+
+            var optionValue = toLowerTrim( $(element).attr('value') );
+
+            if (optionValue === value) {
+                var parent = $(this).parent('select');
+                parent.val($(this).attr('value'));
+                parent.trigger('change');
+            }
+
+        });
+    },
+    click : function () {
+        'use strict';
+        // this is a dom element
+        var evt = document.createEvent('HTMLEvents');
+        evt.initEvent('click', true, true);
+        this.dispatchEvent(evt);
     }
 }
 
 function Ghost() {
+    'use strict';
 
-    //if (!(this instanceof Ghost)) {
-    //    return new Ghost();
-    //}
+    if (!(this instanceof Ghost)) {
+        return new Ghost();
+    }
 
     this.ap = [];       // used for the array prototype only
     this.delay = 2000;
     this.timer = null;  // keeps track of the timer reference.  May need in the future.
-    this.active = true;
+    this.active = true; // used to stop in the middle of a run
 
 }
 
 Ghost.prototype = {
-    setDelay : function(delay) {
+    setDelay : function (delay) {
         this.delay = delay;
     },
-    start : function(action) {
+    start : function (targets, action) {
+
         console.log(action);
         if (typeof action === "Action") {
             throw "parameter is not an Action";
-        } else if (action.ready !== true) {
-            throw "action has not been initialized";
-        }
+        } 
 
-        var targets = $(action.target);
+        var targets = $(targets);
 
         if (targets.length > 0) {
 
-            // Reverse the items in the jQuery object
-            this.ap.reverse.call(targets, this.ap);
-            this.triggerAll(targets, action);
+            // Reverse the returned dom elements
+            this.ap.reverse.apply(targets);
+            return this.triggerAll(targets, action);
         }
 
     },
 
-    triggerAll : function(targets, action) {
-        console.log('working...');
+    triggerAll : function (targets, action) {
+        if( this.active === false) {
+             window.clearTimeout(this.timer);
+             return "Stopped";
+        }
+
         var that = this;
-        var target = this.ap.pop.call(targets, this.ap);
+        var target = this.ap.pop.apply(targets);
+        action.run(target);       
         
-        var evt = document.createEvent('HTMLEvents');
-        evt.initEvent(action.name, true, true);
-        target.dispatchEvent(evt);
-        
-        if (targets.length > 0 || this.active !== false) {
+        if (targets.length) {
             this.timer = window.setTimeout(function() {
                 that.triggerAll(targets,action);
             }, this.delay);
@@ -65,7 +136,17 @@ Ghost.prototype = {
             window.clearTimeout(this.timer);
         }
     }
-}
+};
 
 // Works either jQuery or DomAssistant as the global $ variable
 var g = new Ghost();
+
+var choices = ['one', 'two', 'three'];
+var hideButtons = $('.flat-list .hide-button a');
+
+//var selectValue = new Action('selectIfHasValue', choices);
+var doClick = new Action('click', []);
+g.start(hideButtons, doClick);
+
+
+
